@@ -1,0 +1,205 @@
+package rs.ac.bg.etf.rm130666d;
+
+import java_cup.runtime.*;
+import java.io.*;
+import org.apache.log4j.*;
+
+parser code {:
+	
+	Logger log = Logger.getLogger(getClass());
+	
+	// NIVO A
+	
+	int globalVarCnt = 0;			// definicije globalnih promenljivih
+	int localVarCnt = 0;			// definicije lokalnik promenljivih ( u main funkciji)
+	int globalConstCnt = 0;			// definicije globalnih konstanti
+	int globalArrayCnt = 0;			// deklaracije globalnih nizova
+	
+	// NIVO B
+	
+	int funcCnt = 0;				// definicije globalnih i statickih funkcija unutrasnjih klasa
+	int blockStatCnt = 0;			// blokovi naredbi
+	int callFuncCnt = 0;			// pozive funkcija u telu metode main
+	int formalArgCnt = 0;			// deklaracija formalnih argumenata 
+     
+    // NIVO C
+    
+    int nestedClassCnt = 0;			// definicije unutrasnjih klasa
+    int methodNestedClassCnt = 0;	// definicije metoda unutrasnjih klasa
+    int fieldNestedClassCnt = 0;	// deklaracije polja unutrasnjih klasa	 
+    
+    public void report_fatal_error(String message, Object info) throws java.lang.Exception {
+      done_parsing();
+      report_error(message, info);
+    }
+  
+    public void syntax_error(Symbol cur_token) {
+        report_error("\nSintaksna greska", cur_token);
+    }
+  
+    public void unrecovered_syntax_error(Symbol cur_token) throws java.lang.Exception {
+        report_fatal_error("Fatalna greska, parsiranje se ne moze nastaviti", cur_token);
+    }
+
+    public void report_error(String message, Object info) {
+    	StringBuilder msg = new StringBuilder(message); 
+    	if (info instanceof Symbol)
+            msg.append (" na liniji ").append(((Symbol)info).left).append(" neprepoznat simbol '" + ((Symbol)info).value + "'");
+        log.error(msg.toString());
+    }
+    
+:}
+
+scan with {:
+	Symbol s = this.getScanner().next_token();
+	if (s != null && s.value != null) 
+		log.info(s.toString() + " " + s.value.toString());
+	return s;
+:}
+
+/* KEY WORDS */
+terminal PROGRAM, BREAK, CLASS, ELSE, CONST, IF, NEW, PRINT, READ, RETURN, VOID, FOR, EXTENDS, CONTINUE, STATIC ;
+
+/* IDENTIFIERS */
+terminal  IDENT ;
+
+/* CONSTANTS */
+terminal NUMCONST, CHARCONST, BOOLCONST ;
+
+/* OPERATORS */
+terminal  ADD, SUB, MUL, DIV, MOD, EQ, NEQ, GRE, GREQ, LESS, LEQ, AND, OR, EQUALS, ADDEQ, SUBEQ, MULEQ ;
+terminal DIVEQ, MODEQ, INC, DEC, SEMI, COMMA, LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE, DOT ;
+
+/* NON TERMINAL */
+non terminal Program, DeclList, MethodDeclList, Decl, ConstDecl, VarDecl, ClassDecl, Type, ConstList, Constant, VarList, Variable ;
+non terminal ClassExtend, VarDeclList, MethodStatic, MethodType, FormPars, FormParsMethod, StatementList, FormParent, FormParsList ;
+non terminal Statement, DesignatorStatement, Condition, ActPars ;
+non terminal Assignop, Relop, Addop, AddopLeft, AddopRight, Mulop, MulopLeft, MulopRight ;
+
+/* A.2 Sintaksa */
+
+/* Program */
+Program ::= PROGRAM IDENT DeclList LBRACE MethodDeclList RBRACE ;
+
+DeclList :: = DeclList Decl | ;
+Decl :: = ConstDecl | VarDecl | ClassDecl ;
+MethodDeclList :: = MethodDeclList MethodDecl | ;
+
+/* ConstDecl */
+ConstDecl ::= CONST Type ConstList SEMI ;
+ConstList ::= ConstList COMMA Constant | Constant ;
+Constant ::= IDENT EQUALS ConstType;
+ConstType ::= NUMCONST | CHARCONST | BOOLCONST ;
+
+/* VarDecl */
+VarDecl ::= Type VarList SEMI ;
+VarList ::= VarList COMMA Variable | Variable ;
+Variable ::= IDENT BracketOpt ;
+BracketOpt ::= LBRACKET RBRACKET | ;
+
+/* ClassDecl */
+ClassDecl ::= CLASS IDENT ClassExtend LBRACE VarDeclList MethodClassDecl RBRACE
+ClassExtend :: = EXTENDS Type | ;
+VarDeclList ::= VarDeclList VarDecl | ;
+MethodClassDecl ::= LBRACE MethodDeclList RBRACE ;
+MethodDeclList ::= MethodDeclList MethodDecl | ;
+
+/* MethodDecl */
+MethodDecl ::= MethodStatic MethodType IDENT LPAREN FormParsOpt RPAREN VarDeclList LBRACE StatementList RBRACE 
+MethodStatic ::= STATIC | ;
+MethodType ::= Type | VOID ;
+FormParsOpt ::= FormPars | ;
+StatementList ::= StatementList Statement | ;
+
+/* FormPars */
+FormPars ::= Type IDENT ParentOpt FormParsList ;
+ParentOpt ::= LBRACKET RBRACKET | ;
+FormParsList ::= FormParsList COMMA Type IDENT ParentOpt | ;
+
+/* Type */
+Type ::= IDENT ;
+
+/* Statement */
+Statement ::= DesignatorStatement SEMI
+			| IF LPAREN Condition RPAREN  Statement ElseStatement
+			| FOR LPAREN DesignatorStatementOpt SEMI ConditionOpt SEMI DesignatorStatementOpt RPAREN Statement
+			| BREAK SEMI
+			| CONTINUE SEMI
+			| RETURN ExprOpt SEMI
+			| READ LPAREN Designator RPAREN SEMI
+			| PRINT LPAREN Expr ListNumComma RPAREN SEMI
+			| LBRACE StatementList RBRACE ;
+
+ElseStatement ::= ELSE Statement | ;
+DesignatorStatementOpt ::= DesignatorStatement | ;
+ConditionOpt ::= Condition | ;
+ExprOpt ::= Expr | ;
+ListNumComma ::= ListNumComma COMMA NUMCONST | ;
+StatementList ::= StatementList Statement | ;
+
+/* DesignatorStatement */
+DesignatorStatement ::= Designator Assignop Expr
+						| Designator LPAREN ActParsOpt RPAREN
+						| Designator INC
+						| Designator DEC ;
+						
+ActParsOpt ::= ActPars | ;
+
+/* ActPars */
+ActPars ::= Expr | ActPars COMMA Expr ;
+
+/* Condition */
+Condition ::= CondTerm | Condition OR CondTerm ;
+
+/* CondTerm */
+CondTerm ::= CondFact | CondTerm AND CondFact ;
+
+/* CondFact */
+CondFact ::= Expr | Expr Relop Expr ;
+
+/* Expr */
+Expr ::= SUB Term AddopTermList | Term AddopTermList ;
+AddopTermList ::= AddopTermList Addop Term | ;
+
+/* Term */
+Term ::= Factor MulopFactorList;
+MulopFactorList ::= MulopFactorList Mulop Factor | ;
+
+/* Factor */
+Factor ::= Designator ActParsParenOpt
+			| NUMCONST
+			| CHARCONST
+			| BOOLCONST
+			| NEW Type ExprBracketOpt
+			| LPAREN Expr RPAREN ;
+ActParsParenOpt ::= LPAREN ActParsOpt RPAREN | ;
+ExprBracketOpt ::= LBRACKET Expr RBRACKET | ;
+
+/* Designator */
+Designator ::= IDENT IdentExprList ;
+IdentExprList ::= IdentExprList IdentExpr | ;
+IdentExpr ::= DOT IDENT | LBRACKET Expr RBRACKET ;
+
+/* Assignop */
+Assignop ::= EQUALS | AddopRight | MulopRight
+
+/* Relop */
+Relop ::= EQ | NEQ | GRE | GREQ | LESS | LEQ ;
+
+/* Addop */
+Addop ::= AddopLeft | AddopRight ;
+
+/* AddopLeft */
+AddopLeft ::= ADD | SUB ;
+
+/* AddopRight */
+AddopRight ::= ADDEQ | SUBEQ ;
+
+/* Mulop */
+Mulop ::= MulopLeft | MulopRight ;
+
+/* MulopLeft */
+MulopLeft ::= MUL | DIV | MOD ;
+
+/* MulopRight */
+MulopRight ::= MULEQ | DIVEQ | MODEQ ;
